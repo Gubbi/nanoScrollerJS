@@ -30,6 +30,7 @@
 
     constructor: (@el) ->
       @generate()
+      @scrollCheck()
       @createEvents()
       @addEvents()
       @reset()
@@ -39,14 +40,20 @@
       @events =
         down: (e) =>
           @isDrag  = true
-          @offsetY = e.clientY - @slider.offset().top
+          if @scrollType is 'vertical'
+            @offsetY = e.clientY - @slider.offset().top
+          else if @scrollType is 'horizontal'
+            @offsetY = e.clientX - @slider.offset().left
           @pane.addClass 'active'
           $(document).bind MOUSEMOVE, @events[DRAG]
           $(document).bind MOUSEUP, 	@events[UP]
           false
 
         drag: (e) =>
-          @sliderY = e.clientY - @el.offset().top - @offsetY
+          if @scrollType is 'vertical'
+            @sliderY = e.clientY - @el.offset().top - @offsetY
+          if @scrollType is 'horizontal'
+            @sliderY = e.clientX - @el.offset().left - @offsetY
           @scroll()
           false
 
@@ -62,7 +69,10 @@
           return
 
         panedown: (e) =>
-          @sliderY = e.clientY - @el.offset().top - @sliderH * 0.5
+          if @scrollType is 'vertical'
+            @sliderY = e.clientY - @el.offset().top - @sliderH * 0.5
+          if @scrollType is 'horizontal'
+            @sliderY = e.clientX - @el.offset().left - @sliderH * 0.5
           @scroll()
           @events.down e
           return
@@ -70,8 +80,12 @@
         scroll: (e) =>
           content = @content[0]
           return if @isDrag is true
-          top = content.scrollTop / (content.scrollHeight - content.clientHeight) * (@paneH - @sliderH)
-          @slider.css top: top + 'px'
+          if @scrollType is 'vertical'
+            top = content.scrollTop / (content.scrollHeight - content.clientHeight) * (@paneH - @sliderH)
+            @slider.css top: top + 'px'
+          if @scrollType is 'horizontal'
+            left = content.scrollLeft / (content.scrollWidth - content.clientWidth) * (@paneH - @sliderH)
+            @slider.css left: left + 'px'
           return
 
         wheel: (e) =>
@@ -119,24 +133,58 @@
         right  : -@scrollW + 'px'
       return
 
+    scrollCheck: ->
+      content = @content[0]
+      @paneH  = @pane.outerHeight()
+      console.log @paneH, content.scrollHeight
+      if @paneH >= content.scrollHeight
+        @el.addClass 'horizontal'
+        @content.css
+          bottom : -@scrollW + 'px'
+          right  : 'auto'
+
+        @paneH = content.clientWidth
+        console.log @paneH, content.scrollWidth
+        if @paneH >= content.scrollWidth
+          @scrollType = 'none'
+          @el.removeClass 'horizontal'
+          @content.css
+            right  : -@scrollW + 'px'
+            bottom : 'auto'
+        else
+          @scrollType = 'horizontal'
+      else
+        @scrollType = 'vertical'
+
     reset: ->
       if @isDead is true
         @isDead = false
         @pane.show()
         @addEvents()
 
-      content = @content[0]
-      @contentH  = content.scrollHeight + @scrollW
-      @paneH     = @pane.outerHeight()
-      @sliderH   = @paneH / @contentH * @paneH
-      @sliderH   = Math.round @sliderH
-      @scrollH   = @paneH - @sliderH
-      @slider.height 	@sliderH
-      @diffH = content.scrollHeight - content.clientHeight
-
-      @pane.show()
-      if @paneH >= @content[0].scrollHeight
+      if @scrollType is 'none'
         @pane.hide()
+      else
+        content = @content[0]
+        if @scrollType is 'vertical'
+          @contentH  = content.scrollHeight + @scrollW
+          @paneH     = @pane.outerHeight()
+        else
+          @contentH  = content.scrollWidth + @scrollW
+          @paneH     = content.clientWidth
+
+        @sliderH   = @paneH / @contentH * @paneH
+        @sliderH   = Math.round @sliderH
+        @scrollH   = @paneH - @sliderH
+
+        if @scrollType is 'vertical'
+          @slider.height 	@sliderH
+          @diffH = content.scrollHeight - content.clientHeight
+        else
+          @slider.width   @sliderH
+          @diffH = content.scrollWidth - content.clientWidth
+
+        @pane.show()
       return
 
     scroll: ->
@@ -145,8 +193,12 @@
       scrollValue = @paneH - @contentH + @scrollW
       scrollValue = scrollValue * @sliderY / @scrollH
       # scrollvalue = (paneh - ch + sw) * sy / sw
-      @content.scrollTop -scrollValue
-      @slider.css top: @sliderY
+      if @scrollType is 'vertical'
+        @content.scrollTop -scrollValue
+        @slider.css top: @sliderY
+      if @scrollType is 'horizontal'
+        @content.scrollLeft -scrollValue
+        @slider.css left: @sliderY
 
     scrollBottom: (offsetY) ->
       diffH = @diffH
